@@ -1,85 +1,225 @@
-import { Plus, Pencil, Trash2, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText, History, ChevronDown } from "lucide-react";
 import { useState } from "react";
-
-interface Padrao {
-  id: number;
-  codigo: string;
-  titulo: string;
-  departamento: string;
-  status: "ativo" | "revisão" | "obsoleto";
-  ultimaRevisao: string;
-}
-
-const initialData: Padrao[] = [
-  { id: 1, codigo: "PD-001", titulo: "Controle de Documentos", departamento: "Qualidade", status: "ativo", ultimaRevisao: "2025-12-01" },
-  { id: 2, codigo: "PD-002", titulo: "Auditoria Interna", departamento: "Qualidade", status: "ativo", ultimaRevisao: "2025-11-15" },
-  { id: 3, codigo: "PD-003", titulo: "Gestão de Riscos", departamento: "Produção", status: "revisão", ultimaRevisao: "2025-10-20" },
-  { id: 4, codigo: "PD-004", titulo: "Treinamento e Capacitação", departamento: "RH", status: "ativo", ultimaRevisao: "2025-09-10" },
-  { id: 5, codigo: "PD-005", titulo: "Backup de Dados", departamento: "TI", status: "ativo", ultimaRevisao: "2026-01-05" },
-  { id: 6, codigo: "PD-006", titulo: "Política de Segurança", departamento: "TI", status: "obsoleto", ultimaRevisao: "2024-06-30" },
-];
+import { useData, Padrao } from "@/contexts/DataContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const statusStyles: Record<string, string> = {
-  ativo: "bg-emerald-100 text-emerald-700",
-  revisão: "bg-amber-100 text-amber-700",
-  obsoleto: "bg-red-100 text-red-700",
+  ativo: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  revisão: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  obsoleto: "bg-red-500/10 text-red-600 dark:text-red-400",
 };
 
 const Padroes = () => {
-  const [padroes] = useState<Padrao[]>(initialData);
+  const { padroes, addPadrao, updatePadrao, deletePadrao, departamentos } = useData();
+  const { hasPermission, user } = useAuth();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState<Padrao | null>(null);
+  const [editing, setEditing] = useState<Padrao | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [form, setForm] = useState({ codigo: "", titulo: "", departamento: "", status: "ativo" as Padrao["status"], dados: {} as Record<string, any> });
+  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
+
+  const filtered = filtroStatus === "todos" ? padroes : padroes.filter((p) => p.status === filtroStatus);
+
+  const openNew = () => {
+    setEditing(null);
+    setForm({ codigo: `PD-${String(padroes.length + 1).padStart(3, "0")}`, titulo: "", departamento: departamentos[0]?.nome || "", status: "ativo", dados: {} });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (p: Padrao) => {
+    setEditing(p);
+    setForm({ codigo: p.codigo, titulo: p.titulo, departamento: p.departamento, status: p.status, dados: p.dados });
+    setDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!form.titulo.trim() || !form.codigo.trim()) {
+      toast.error("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (editing) {
+      updatePadrao(editing.id, { titulo: form.titulo, departamento: form.departamento, status: form.status, dados: form.dados }, user?.nome || "Sistema");
+      toast.success("Padrão atualizado! Nova versão criada.");
+    } else {
+      addPadrao({ codigo: form.codigo, titulo: form.titulo, departamento: form.departamento, status: form.status, dados: form.dados, ultimaRevisao: new Date().toISOString().slice(0, 10) });
+      toast.success("Padrão criado!");
+    }
+    setDialogOpen(false);
+  };
+
+  const handleDelete = (id: number) => {
+    deletePadrao(id);
+    setDeleteConfirm(null);
+    toast.success("Padrão removido!");
+  };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-foreground">Padrões</h1>
-        <button className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity">
-          <Plus size={18} />
-          Novo Padrão
-        </button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Padrões</h1>
+          <p className="text-muted-foreground mt-1">{padroes.length} padrões registrados</p>
+        </div>
+        {hasPermission("gestor") && (
+          <button onClick={openNew} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity shadow-sm">
+            <Plus size={18} />
+            Novo Padrão
+          </button>
+        )}
       </div>
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      {/* Filters */}
+      <div className="flex gap-2">
+        {["todos", "ativo", "revisão", "obsoleto"].map((s) => (
+          <button
+            key={s}
+            onClick={() => setFiltroStatus(s)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              filtroStatus === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            {s === "todos" ? "Todos" : s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="bg-card border border-border rounded-2xl overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border">
-              <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Código</th>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Título</th>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Departamento</th>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Status</th>
-              <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Última Revisão</th>
-              <th className="text-right px-6 py-4 text-sm font-semibold text-muted-foreground">Ações</th>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Código</th>
+              <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Título</th>
+              <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Departamento</th>
+              <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+              <th className="text-left px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Versão</th>
+              <th className="text-right px-6 py-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {padroes.map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                <td className="px-6 py-4 text-sm font-mono font-medium text-card-foreground">{p.codigo}</td>
+            {filtered.map((p) => (
+              <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                <td className="px-6 py-4 text-sm font-mono font-semibold text-card-foreground">{p.codigo}</td>
                 <td className="px-6 py-4 text-sm text-card-foreground">{p.titulo}</td>
                 <td className="px-6 py-4 text-sm text-muted-foreground">{p.departamento}</td>
                 <td className="px-6 py-4">
-                  <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${statusStyles[p.status]}`}>
+                  <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-semibold ${statusStyles[p.status]}`}>
                     {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">{p.ultimaRevisao}</td>
+                <td className="px-6 py-4 text-sm text-muted-foreground">v{p.versaoAtual}</td>
                 <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                      <FileText size={16} />
-                    </button>
-                    <button className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                      <Pencil size={16} />
-                    </button>
-                    <button className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
-                      <Trash2 size={16} />
-                    </button>
+                  <div className="flex items-center justify-end gap-1">
+                    {p.historico.length > 0 && (
+                      <button onClick={() => setHistoryOpen(p)} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Histórico">
+                        <History size={15} />
+                      </button>
+                    )}
+                    {hasPermission("gestor") && (
+                      <>
+                        <button onClick={() => openEdit(p)} className="p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                          <Pencil size={15} />
+                        </button>
+                        <button onClick={() => setDeleteConfirm(p.id)} className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
+                          <Trash2 size={15} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {filtered.length === 0 && (
+          <div className="py-12 text-center text-muted-foreground text-sm">Nenhum padrão encontrado.</div>
+        )}
       </div>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? `Editar ${editing.codigo}` : "Novo Padrão"}</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <p className="text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
+              ⚠️ Ao salvar, a versão atual (v{editing.versaoAtual}) será arquivada e uma nova versão será criada.
+            </p>
+          )}
+          <div className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Código *</label>
+                <input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" disabled={!!editing} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Status</label>
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as Padrao["status"] })} className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                  <option value="ativo">Ativo</option>
+                  <option value="revisão">Revisão</option>
+                  <option value="obsoleto">Obsoleto</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Título *</label>
+              <input value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Título do padrão" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Departamento</label>
+              <select value={form.departamento} onChange={(e) => setForm({ ...form, departamento: e.target.value })} className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                {departamentos.map((d) => <option key={d.id} value={d.nome}>{d.nome}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setDialogOpen(false)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">Cancelar</button>
+              <button onClick={handleSave} className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity">Salvar</button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={historyOpen !== null} onOpenChange={() => setHistoryOpen(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Histórico — {historyOpen?.codigo}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {historyOpen?.historico.map((v, i) => (
+              <div key={i} className="p-3 rounded-xl bg-muted/30 border border-border">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-semibold text-card-foreground">Versão {v.versao}</span>
+                  <span className="text-xs text-muted-foreground">{v.data}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Editado por: {v.editadoPor}</p>
+                <p className="text-xs text-muted-foreground mt-1">Título: {v.dados.titulo} | Status: {v.dados.status}</p>
+              </div>
+            ))}
+            {historyOpen?.historico.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum histórico disponível.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <Dialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Tem certeza que deseja remover este padrão?</p>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors">Cancelar</button>
+            <button onClick={() => deleteConfirm && handleDelete(deleteConfirm)} className="flex-1 py-2.5 rounded-lg bg-destructive text-destructive-foreground text-sm font-semibold hover:opacity-90 transition-opacity">Excluir</button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
