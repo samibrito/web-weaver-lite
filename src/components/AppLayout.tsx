@@ -10,10 +10,12 @@ const AppLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background noise">
       <AppSidebar />
-      <main className="ml-64 p-8 min-h-screen">
-        <Outlet />
+      <main className="ml-[72px] lg:ml-60 min-h-screen transition-all duration-300">
+        <div className="max-w-[1400px] mx-auto p-6 lg:p-8">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

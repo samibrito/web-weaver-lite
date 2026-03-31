@@ -1,7 +1,8 @@
-import { LayoutDashboard, Building2, Layers, Activity, Blocks, Moon, Sun, LogOut, Shield } from "lucide-react";
+import { LayoutDashboard, Building2, Layers, Activity, Blocks, Moon, Sun, LogOut, Shield, ChevronLeft, ChevronRight } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -11,83 +12,100 @@ const navItems = [
   { to: "/logs", label: "Auditoria", icon: Activity },
 ];
 
-const roleLabels = { admin: "Administrador", gestor: "Gestor", usuario: "Usuário" };
-const roleBadgeStyles = {
-  admin: "bg-primary/20 text-primary",
-  gestor: "bg-amber-500/20 text-amber-400",
-  usuario: "bg-emerald-500/20 text-emerald-400",
-};
+const roleLabels = { admin: "Admin", gestor: "Gestor", usuario: "Usuário" };
 
 const AppSidebar = () => {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col border-r border-sidebar-border">
+    <aside
+      className={`fixed left-0 top-0 h-screen bg-sidebar flex flex-col border-r border-sidebar-border z-50 transition-all duration-300 ${
+        collapsed ? "w-[72px]" : "w-60"
+      }`}
+    >
       {/* Logo */}
-      <div className="px-6 py-5 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-sidebar-primary flex items-center justify-center">
-          <span className="text-sidebar-primary-foreground font-bold text-lg">N</span>
+      <div className="px-4 py-5 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shrink-0 glow-primary">
+          <span className="text-white font-bold text-lg tracking-tight">N</span>
         </div>
-        <div>
-          <h1 className="text-lg font-bold text-sidebar-primary-foreground leading-tight">Norte</h1>
-          <p className="text-[10px] text-sidebar-foreground/60 uppercase tracking-wider">Gestão de Padrões</p>
-        </div>
+        {!collapsed && (
+          <div className="animate-fade-in">
+            <h1 className="text-base font-bold text-sidebar-primary-foreground leading-tight tracking-tight">Norte</h1>
+            <p className="text-[9px] text-sidebar-foreground/50 uppercase tracking-[0.2em] font-medium">Gestão de Padrões</p>
+          </div>
+        )}
       </div>
 
+      {/* Collapse toggle */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="mx-auto mb-2 w-6 h-6 rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-foreground hover:text-sidebar-primary-foreground hover:bg-sidebar-primary/20 transition-colors"
+      >
+        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+      </button>
+
       {/* Nav */}
-      <nav className="flex-1 px-3 mt-2 space-y-0.5">
+      <nav className="flex-1 px-2 space-y-1">
         {navItems.map((item) => {
           const isActive = item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to);
           return (
             <NavLink
               key={item.to}
               to={item.to}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+              title={collapsed ? item.label : undefined}
+              className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 group ${
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                  ? "bg-sidebar-primary/15 text-sidebar-primary"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               }`}
             >
-              <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-              {item.label}
+              {isActive && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-sidebar-primary" />
+              )}
+              <item.icon size={18} strokeWidth={isActive ? 2.2 : 1.8} className="shrink-0" />
+              {!collapsed && <span className="animate-fade-in truncate">{item.label}</span>}
             </NavLink>
           );
         })}
       </nav>
 
-      {/* Theme toggle */}
-      <div className="px-3 mb-2">
+      {/* Bottom */}
+      <div className="px-2 pb-3 space-y-1">
+        {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+          title={collapsed ? (theme === "light" ? "Modo Escuro" : "Modo Claro") : undefined}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
         >
-          {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-          {theme === "light" ? "Modo Escuro" : "Modo Claro"}
+          {theme === "light" ? <Moon size={18} strokeWidth={1.8} /> : <Sun size={18} strokeWidth={1.8} />}
+          {!collapsed && <span>{theme === "light" ? "Modo Escuro" : "Modo Claro"}</span>}
         </button>
-      </div>
 
-      {/* User */}
-      <div className="px-3 pb-4">
-        <div className="bg-sidebar-accent/30 rounded-xl p-3">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-full bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground font-semibold text-sm">
+        {/* User */}
+        <div className={`rounded-xl bg-sidebar-accent/50 ${collapsed ? "p-2" : "p-3"}`}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-xs shrink-0">
               {user?.nome.split(" ").map(n => n[0]).join("").slice(0, 2)}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-sidebar-primary-foreground truncate">{user?.nome}</p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">{user?.departamento}</p>
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${roleBadgeStyles[user?.role || "usuario"]}`}>
-              <Shield size={10} />
-              {roleLabels[user?.role || "usuario"]}
-            </span>
-            <button onClick={logout} className="p-1.5 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-primary-foreground hover:bg-sidebar-accent transition-colors" title="Sair">
-              <LogOut size={16} />
-            </button>
+            {!collapsed && (
+              <div className="flex-1 min-w-0 animate-fade-in">
+                <p className="text-xs font-semibold text-sidebar-accent-foreground truncate">{user?.nome}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-sidebar-primary">
+                    <Shield size={8} />
+                    {roleLabels[user?.role || "usuario"]}
+                  </span>
+                </div>
+              </div>
+            )}
+            {!collapsed && (
+              <button onClick={logout} className="p-1.5 rounded-lg text-sidebar-foreground/50 hover:text-accent hover:bg-sidebar-accent transition-colors" title="Sair">
+                <LogOut size={14} />
+              </button>
+            )}
           </div>
         </div>
       </div>
